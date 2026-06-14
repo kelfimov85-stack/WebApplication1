@@ -8,11 +8,11 @@ namespace WebApplication1.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class CustomersController : Controller
+    public class CustomerController : Controller
     {
         private readonly DeliveryDbContext _db;
 
-        public CustomersController(DeliveryDbContext db)
+        public CustomerController(DeliveryDbContext db)
         {
             _db = db;
         }

@@ -19,12 +19,33 @@ namespace WebApplication1.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetOrders()
+        public IActionResult GetOrders([FromQuery] OrderStatus? status)
         {
-            var orders = _db.Orders
-                .Include(order => order.Customer)
-                .Include(order => order.Items)
-                .Include(order => order.Courier).ToList();
+            var query = _db.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.Items)
+                .Include(o => o.Courier)
+                .AsNoTracking();
+
+            if (status.HasValue)
+                query = query.Where(o => o.Status == status.Value);
+
+            var orders = query
+                .Select(o => new OrderResponseDto
+                {
+                    Id = o.Id,
+                    CustomerId = o.CustomerId,
+                    Status = o.Status,
+                    Items = o.Items.Select(i => new OrderItemDto
+                    {
+                        Id = i.Id,
+                        ProductName = i.ProductName,
+                        Price = i.Price,
+                        Quantity = i.Quantity
+                    }).ToList(),
+                    TotalPrice = o.Items.Sum(i => i.Price * i.Quantity)
+                })
+                .ToList();
 
             return Ok(orders);
         }
@@ -49,8 +70,8 @@ namespace WebApplication1.Controllers
         {
             var isCustomerExists = _db.Customers.Any(customer => customer.Id == dto.CustomerId);
 
-            if (!isCustomerExists)
-                return NotFound("Customer not found");
+            if (isCustomerExists)
+                return BadRequest("Customer already there");
 
             var order = new Order
             {
@@ -59,7 +80,8 @@ namespace WebApplication1.Controllers
                 Items = dto.Items.Select(item => new OrderItem()
                 {
                     ProductName = item.ProductName,
-                    Quantity = item.Quantity
+                    Quantity = item.Quantity,
+                    Price = item.Price
                 }).ToList()
             };
 
@@ -115,50 +137,22 @@ namespace WebApplication1.Controllers
         }
 
         [HttpPatch("{id}/cancel")]
-        public IActionResult DeliverOrderCancelled(int id) 
+        public IActionResult CancelOrder(int id)
         {
-            var status = _db.Orders.Any(order => order.Id == id);
+            var order = _db.Orders.FirstOrDefault(order => order.Id == id);
 
-            if (status)
-            {
-                var order = _db.Orders.FirstOrDefault(order => order.Id == id);
-                order.Status = OrderStatus.Cancelled;
-                return Ok(order);
-            }
+            if (order == null)
+                return NotFound("Not found");
 
-            return BadRequest();
-        }
+            if (order.Status == OrderStatus.Delivered)
+                return BadRequest("You cannot cancel an order that has already been delivered.");
 
-        [HttpGet("Assigned")]
-        public IActionResult GetOrders([FromQuery] OrderStatus? status)
-        {
-            var query = _db.Orders
-                .Include(o => o.Items)
-                .AsNoTracking();
+            if (order.Status == OrderStatus.Cancelled)
+                return BadRequest("Order already cancelled");
 
-            if (status.HasValue)
-            {
-                query = query.Where(o => o.Status == status.Value);
-            }       
-
-            var orders = query
-                .Select(o => new OrderResponseDto
-                {
-                    Id = o.Id,
-                    CustomerId = o.CustomerId,
-                    Status = o.Status,
-                    Items = o.Items.Select(i => new OrderItemDto
-                    {
-                        Id = i.Id,
-                        ProductName = i.ProductName,
-                        Price = i.Price,
-                        Quantity = i.Quantity
-                    }).ToList(),
-                    TotalPrice = o.Items.Sum(i => i.Price * i.Quantity)
-                })
-                .ToList();
-
-            return Ok(orders);
+            order.Status = OrderStatus.Cancelled;
+            _db.SaveChanges();
+            return Ok(order);
         }
     }
 }

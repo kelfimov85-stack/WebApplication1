@@ -1,10 +1,14 @@
+using Microsoft.EntityFrameworkCore;
+using WebApplication1.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// ← ЭТО ОБЯЗАТЕЛЬНО ДОБАВИТЬ:
+builder.Services.AddDbContext<DeliveryDbContext>(opt =>
+    opt.UseInMemoryDatabase("DeliveryDb"));
 
 var app = builder.Build();
 
